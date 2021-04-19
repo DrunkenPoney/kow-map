@@ -1,4 +1,4 @@
-import { Mutable } from '@/modules/utils'
+import { Mutable } from '@/modules/utils/types'
 
 export interface IImmutableCoord {
   readonly x: number

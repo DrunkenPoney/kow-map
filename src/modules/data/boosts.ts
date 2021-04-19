@@ -1,12 +1,12 @@
 import categories, { Category } from '@/modules/data/categories'
 
-export type Boost = {
+export interface IBoost {
   name: string
   cat: Category
   value: number
 }
 
-export type BoostFunc = (value: number) => Boost
+export type BoostFunc = (value: number) => IBoost
 
 export const gather: BoostFunc = (value = 0) =>
   ( { name: 'Gathering Speed', cat: categories.farm, value } )
@@ -36,7 +36,7 @@ export const unitProd: BoostFunc = (value = 0) =>
   ( { name: 'Unit Production Speed', cat: categories.unitProd, value } )
 
 export const construct: BoostFunc = (value = 0) =>
-  ( { name: 'Construction Speed', cat: categories.unitProd, value } )
+  ( { name: 'Construction Speed', cat: categories.construct, value } )
 
 export const rallyAttack: BoostFunc = (value = 0) =>
   ( { name: 'Rally Troop Attack', cat: categories.war, value } )

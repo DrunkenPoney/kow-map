@@ -24,7 +24,7 @@ export const research: Category = {
 
 export const construct: Category = {
   name: 'Construction',
-  color: [200, 230, 33],
+  color: [33, 230, 187],
   disabled: false
 }
 
