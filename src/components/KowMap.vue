@@ -10,7 +10,7 @@
         <img ref="img" alt="KoW Map" src="@/assets/images/kow-map-no-city.png" />
         <div :style="marginStyle">
           <KowCity v-for="(city, idx) in cities" :key="idx"
-                   :city="city" :state="live" />
+                   :city="city" :state="live"/>
         </div>
       </div>
     </div>
@@ -32,6 +32,13 @@ const refs = {
   img: ref<HTMLImageElement>() as Ref<HTMLImageElement>,
   wrapper: ref<HTMLDivElement>() as Ref<HTMLDivElement>,
   container: ref<HTMLDivElement>() as Ref<HTMLDivElement>,
+}
+
+type ZoomOpts = {
+  scale: number,
+  zoomX: number,
+  zoomY: number,
+  persist?: boolean
 }
 
 export default defineComponent({
@@ -70,6 +77,7 @@ export default defineComponent({
     this.hammer.on('pinchmove', this.onPinch)
     this.hammer.on('pinchend', this.onPinch)
     this.hammer.on('tap', this.onTap)
+
   },
 
   computed: {
@@ -102,30 +110,31 @@ export default defineComponent({
     },
 
     onTap(ev: HammerInput) {
-      console.debug('tap', ev)
+      if (!ev.target.classList.contains('city')) {
+        console.debug('tap', ev)
+      }
     },
 
     onWheel(ev: WheelEvent) {
       if (ev.deltaY === 0) return
-      let delta = 1 + Math.sign(ev.deltaY) *
+      const scale = 1 + Math.sign(ev.deltaY) *
           Math.min(1, Math.abs(ev.deltaY * WHEEL_ZOOM_SENSITIVITY))
 
-      const scale = this.persisted.scale
-      this.zoom(this.persisted.scale * delta, true)
-
-      delta = this.persisted.scale / scale
-      this.translateX(ev.x * ( 1 - delta ) + this.persisted.translate.x * delta, true)
-      this.translateY(ev.y * ( 1 - delta ) + this.persisted.translate.y * delta, true)
+      this.zoomAt({
+        scale,
+        zoomX: ev.x,
+        zoomY: ev.y,
+        persist: true
+      })
     },
 
     onPinch(ev: HammerInput) {
-      const persist = ev.type === 'pinchend',
-            scale   = this.persisted.scale * ev.scale,
-            w       = this.container.clientWidth,
-            h       = this.container.clientHeight
-      this.zoom(scale, persist)
-      this.translateX(this.persisted.translate.x + ( w - ( scale * w ) ) / 2, persist)
-      this.translateY(this.persisted.translate.y + ( h - ( scale * h ) ) / 2, persist)
+      this.zoomAt({
+        scale: ev.scale,
+        zoomX: ev.center.x,
+        zoomY: ev.center.y,
+        persist: ev.type === 'pinchend'
+      })
     },
 
     onPan(ev: HammerInput): void {
@@ -135,12 +144,20 @@ export default defineComponent({
       this.translateY(this.persisted.translate.y + ev.deltaY, persist)
     },
 
-    zoom(scale: number, persist: boolean = false): void {
+    zoomAt({ scale, zoomX, zoomY, persist = false }: ZoomOpts): void {
+      const prevScale = this.persisted.scale
+      scale = this.zoom(scale * this.persisted.scale, persist) / prevScale
+      this.translateX(zoomX * (1 - scale) + this.persisted.translate.x * scale, persist)
+      this.translateY(zoomY * (1 - scale) + this.persisted.translate.y * scale, persist)
+    },
+
+    zoom(scale: number, persist: boolean = false): number {
       scale = this.initialSize * Math.min(scale, MAX_SCALE)
       scale = Math.max(scale, this.container.clientWidth, this.container.clientHeight)
       scale /= this.initialSize
       if (persist) this.persisted.scale = scale
       this.live.scale = scale
+      return scale
     },
 
     translateX(x: number, persist: boolean = false): void {

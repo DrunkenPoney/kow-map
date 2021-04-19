@@ -1,20 +1,46 @@
 <template>
-  <button
-      :class="`level-${city.level}`">
+  <button :class="`city level-${city.level}`"
+          ref="btn"
+          @click="onClick">
     <i v-if="city.level >= 3" class="city-star" />
     <span v-else-if="city.level === 2" class="dot" ref="dot" />
     <span v-else/>
     <span class="btn-city-name">{{ city.name }}</span>
   </button>
+  <div style="display: none">
+    <div class="city-tooltip" ref="tooltip">
+      <div class="p-grid">
+        <div class="p-col-5 p-pb-1">Level:</div>
+        <div class="p-col p-pb-1" v-text="city.level"/>
+      </div>
+      <div class="p-grid">
+        <div class="p-col-5 p-py-1">Coords:</div>
+        <div class="p-col p-py-1">({{city.coords[0]}}; {{city.coords[1]}})</div>
+      </div>
+      <div class="p-grid">
+        <div class="p-col p-pt-1 p-pb-0">Boosts:</div>
+      </div>
+      <table style="border-collapse: collapse">
+        <tbody>
+          <tr v-for="(boost, idx) in city.boosts" :key="idx">
+            <td style="padding-left: .5em; padding-right: .25em">&bull; {{boost.name}}:</td>
+            <td v-text="fmtBoost(boost)"/>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
 </template>
 
 <script lang="ts">
 import { defineComponent, Prop } from 'vue'
 import { City, ICity } from '@/modules/data/cities'
-import { ICoord } from '@/modules/coord/Coord'
 import { GAME_MAP_SIZE } from '@/modules/utils/constants'
 import { IState } from '@/modules/state'
 import { color } from '@/modules/utils/colors'
+import tippy from 'tippy.js'
+import { IBoost } from '@/modules/data/boosts'
+import { round } from '@/modules/utils/math'
 
 export function colorOf(city: ICity): string {
   let boosts = city.boosts.filter((b) => !b.cat.disabled)
@@ -25,7 +51,7 @@ export function colorOf(city: ICity): string {
 
 export default defineComponent({
   name: 'KowCity',
-
+  emits: ['city-select'],
   props: {
     city: {
       type: City,
@@ -36,15 +62,10 @@ export default defineComponent({
     },
   },
 
-  data() {
-    return {
-      coords: {} as ICoord,
-    }
-  },
-
   computed: {
-    btn(): HTMLButtonElement { return this.$el },
-    dot(): HTMLElement | null { return this.$refs.dot as HTMLElement | null }
+    btn(): HTMLButtonElement { return this.$refs.btn as HTMLButtonElement },
+    dot(): HTMLElement | null { return this.$refs.dot as HTMLElement | null },
+    tooltip(): HTMLElement { return this.$refs.tooltip as HTMLElement }
   },
 
   mounted(): void {
@@ -59,15 +80,38 @@ export default defineComponent({
 
     this.btn.style.left   = `${rX}%`
     this.btn.style.bottom = `${rY}%`
+
+    tippy(this.btn, {
+      content: this.tooltip,
+      interactive: true,
+      appendTo: document.body,
+    })
   },
+
+  methods: {
+    onClick(ev: PointerEvent): void {
+      this.$emit('city-select', this.city, ev)
+    },
+
+    fmtBoost(boost: IBoost): string {
+      return `${round(boost.value * 100, 2)}%`
+    }
+  }
 })
 
 </script>
 
 <style lang="scss" scoped>
 @use "sass:list";
+@use "sass:math";
 
-$city-radius: 6px, 10px, 14px, 17px;
+.city-tooltip {
+  * {
+    white-space: nowrap;
+  }
+}
+
+$city-radius: 4px, 10px, 14px, 17px;
 
 button {
   all: unset;
@@ -90,6 +134,10 @@ button {
       width: $radius;
       height: $radius;
       margin: -$radius / 2;
+
+      > .btn-city-name {
+        font-size: math.max($radius + 1px, 10px);
+      }
 
       .city-star {
         font-size: $radius / 2;

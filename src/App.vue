@@ -6,7 +6,7 @@ import KowMap from '@/components/KowMap.vue'
 import { defineComponent } from 'vue'
 
 export default defineComponent({
-  components: { KowMap }
+  components: { KowMap },
 })
 </script>
 
