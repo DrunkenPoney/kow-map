@@ -5,7 +5,7 @@ export type Category = {
 }
 
 export const farm: Category = {
-  name: 'Farm',
+  name: 'Farm / Gathering',
   color: [0, 150, 0],
   disabled: false
 }

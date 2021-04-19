@@ -1,11 +1,17 @@
 <template>
   <div class="legend-wrapper">
-    <strong class="legend-title">Legend</strong>
-    <div v-for="(cat, idx) in categories" :key="idx"
-         class="legend">
-      <div><span :style="{ color: colorOf(cat) }" v-html="blocks(1)" />:</div>
-      <div v-text="cat.name" />
-    </div>
+    <strong class="legend-title" @click="opened = !opened">
+      <span :class="`pi pi-chevron-${opened ? 'down' : 'right'}`"
+            style="font-size: 9px"/>
+      <span class="legend-title-text">Legend</span>
+    </strong>
+    <template v-if="opened">
+      <div v-for="(cat, idx) in categories" :key="idx"
+           class="legend">
+        <div><span :style="{ color: colorOf(cat) }" v-html="blocks(1)" />:</div>
+        <div v-text="cat.name" />
+      </div>
+    </template>
   </div>
 </template>
 
@@ -19,6 +25,7 @@ export default defineComponent({
   data() {
     return {
       categories: Object.values(categories),
+      opened: false
     }
   },
 
@@ -35,7 +42,6 @@ export default defineComponent({
   top: 1em;
   right: 1em;
   z-index: 9999;
-  padding: 0.25em;
   font-size: 10px;
 
   border: 2px solid var(--surface-d);
@@ -46,13 +52,33 @@ export default defineComponent({
 
   .legend-title {
     display: block;
-    text-decoration: underline;
-    margin-bottom: 0.5em;
+    cursor: pointer;
+    padding: .25em;
+
+    &:hover {
+      background-color: var(--surface-d);
+    }
+
+    .legend-title-text {
+      padding-left: .25em;
+      text-decoration: underline;
+    }
   }
 
   .legend {
     display: flex;
     flex-wrap: nowrap;
+    padding-left: .25em;
+    padding-right: .25em;
+    line-height: 1;
+
+    &:first-of-type {
+      margin-top: 0.5em;
+    }
+
+    &:last-of-type {
+      padding-bottom: .25em;
+    }
 
     > :first-child {
       padding-right: 0.25em;
