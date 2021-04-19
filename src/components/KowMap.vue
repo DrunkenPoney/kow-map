@@ -2,16 +2,17 @@
   <div ref="container"
        class="map-container"
        :style="`cursor: ${grabbing ? 'grabbing' : 'grab'}`"
-       @resize="onContainerResize"
        @wheel.passive="onWheel">
     <div ref="wrapper"
          class="map-wrapper">
       <div class="map-content">
-        <img ref="img" alt="KoW Map" src="@/assets/images/kow-map-no-city.png" />
+        <img ref="img" @load="onLoad"
+             alt="KoW Map" src="@/assets/images/kow-map-no-city.png" />
         <div :style="marginStyle">
           <KowCity v-for="(city, idx) in cities" :key="idx"
-                   :city="city" :state="live"/>
+                   :city="city" :state="state.live" />
         </div>
+        <Legend />
       </div>
     </div>
   </div>
@@ -24,9 +25,9 @@ import cities, { ICity } from '@/modules/data/cities'
 import KowCity from '@/components/KowCity.vue'
 import { isMobile } from '@/modules/utils/browser'
 import Hammer from 'hammerjs'
-import { MAX_SCALE, WHEEL_ZOOM_SENSITIVITY } from '@/modules/utils/constants'
-import { constrain } from '@/modules/utils/math'
-import { newState } from '@/modules/state'
+import { WHEEL_ZOOM_SENSITIVITY } from '@/modules/utils/constants'
+import { IStateManager, StateManager } from '@/modules/state'
+import Legend from '@/components/Legend.vue'
 
 const refs = {
   img: ref<HTMLImageElement>() as Ref<HTMLImageElement>,
@@ -34,16 +35,9 @@ const refs = {
   container: ref<HTMLDivElement>() as Ref<HTMLDivElement>,
 }
 
-type ZoomOpts = {
-  scale: number,
-  zoomX: number,
-  zoomY: number,
-  persist?: boolean
-}
-
 export default defineComponent({
   name: 'KowMap',
-  components: { KowCity },
+  components: { Legend, KowCity },
   setup: () => refs,
 
   data() {
@@ -51,37 +45,15 @@ export default defineComponent({
       cities: [] as Array<ICity>,
       hammer: {} as HammerManager,
       grabbing: false,
-      initialSize: 0,
-      persisted: newState(),
-      live: newState(),
+      state: null as unknown as IStateManager,
     }
   },
 
   mounted(): void {
-    if (isMobile()) {
-      this.img.width = Math.max(screen.width, screen.height)
-    }
-
-    if (this.img.complete) {
-      this.onImgLoad()
-    } else {
-      this.img.addEventListener('load', this.onImgLoad)
-    }
-
-    this.hammer = new Hammer.Manager(this.container)
-    this.hammer.add(new Hammer.Pan())
-    this.hammer.add(new Hammer.Pinch())
-    this.hammer.add(new Hammer.Tap())
-    this.hammer.on('panend', this.onPan)
-    this.hammer.on('panmove', this.onPan)
-    this.hammer.on('pinchmove', this.onPinch)
-    this.hammer.on('pinchend', this.onPinch)
-    this.hammer.on('tap', this.onTap)
-
   },
 
   computed: {
-    img() { return refs.img.value as HTMLImageElement },
+    img(): HTMLImageElement { return this.$refs.img as HTMLImageElement },
     wrapper() { return refs.wrapper.value as HTMLDivElement },
     container() { return refs.container.value as HTMLDivElement },
     marginStyle() {
@@ -98,15 +70,21 @@ export default defineComponent({
   },
 
   methods: {
-    onImgLoad() {
-      this.initialSize = this.img.width
-      this.cities      = cities
-    },
+    onLoad(): void {
+      if (isMobile()) this.img.width = Math.max(screen.width, screen.height)
+      this.state = new StateManager(this.$el, this.img)
 
-    onContainerResize(ev: UIEvent) {
-      this.translateX(this.persisted.translate.x, true)
-      this.translateY(this.persisted.translate.y, true)
-      this.zoom(this.persisted.scale, true)
+      this.hammer = new Hammer.Manager(this.container)
+      this.hammer.add(new Hammer.Pan())
+      this.hammer.add(new Hammer.Pinch())
+      this.hammer.add(new Hammer.Tap())
+      this.hammer.on('panend', this.onPan)
+      this.hammer.on('panmove', this.onPan)
+      this.hammer.on('pinchmove', this.onPinch)
+      this.hammer.on('pinchend', this.onPinch)
+      this.hammer.on('tap', this.onTap)
+
+      this.cities = cities
     },
 
     onTap(ev: HammerInput) {
@@ -119,65 +97,25 @@ export default defineComponent({
       if (ev.deltaY === 0) return
       const scale = 1 + Math.sign(ev.deltaY) *
           Math.min(1, Math.abs(ev.deltaY * WHEEL_ZOOM_SENSITIVITY))
-
-      this.zoomAt({
-        scale,
-        zoomX: ev.x,
-        zoomY: ev.y,
-        persist: true
-      })
+      this.state.zoomAt(scale, ev.x, ev.y, true)
     },
 
     onPinch(ev: HammerInput) {
-      this.zoomAt({
-        scale: ev.scale,
-        zoomX: ev.center.x,
-        zoomY: ev.center.y,
-        persist: ev.type === 'pinchend'
-      })
+      this.state.zoomAt(ev.scale, ev.center.x, ev.center.y, ev.type === 'pinchend')
     },
 
     onPan(ev: HammerInput): void {
-      const persist = ev.type === 'panend'
-      this.grabbing = !persist
-      this.translateX(this.persisted.translate.x + ev.deltaX, persist)
-      this.translateY(this.persisted.translate.y + ev.deltaY, persist)
-    },
-
-    zoomAt({ scale, zoomX, zoomY, persist = false }: ZoomOpts): void {
-      const prevScale = this.persisted.scale
-      scale = this.zoom(scale * this.persisted.scale, persist) / prevScale
-      this.translateX(zoomX * (1 - scale) + this.persisted.translate.x * scale, persist)
-      this.translateY(zoomY * (1 - scale) + this.persisted.translate.y * scale, persist)
-    },
-
-    zoom(scale: number, persist: boolean = false): number {
-      scale = this.initialSize * Math.min(scale, MAX_SCALE)
-      scale = Math.max(scale, this.container.clientWidth, this.container.clientHeight)
-      scale /= this.initialSize
-      if (persist) this.persisted.scale = scale
-      this.live.scale = scale
-      return scale
-    },
-
-    translateX(x: number, persist: boolean = false): void {
-      x = constrain(x, this.container.clientWidth - this.img.width, 0)
-      if (persist) this.persisted.translate.x = x
-      this.live.translate.x = x
-    },
-
-    translateY(y: number, persist: boolean = false): void {
-      y = constrain(y, this.container.clientHeight - this.img.height, 0)
-      if (persist) this.persisted.translate.y = y
-      this.live.translate.y = y
+      this.grabbing = ev.type !== 'panend'
+      this.state.translateX(this.state.persisted.translate.x + ev.deltaX, !this.grabbing)
+      this.state.translateY(this.state.persisted.translate.y + ev.deltaY, !this.grabbing)
     },
 
   },
 
   watch: {
-    'live.translate.y'(y) { this.wrapper.style.top = y + 'px' },
-    'live.translate.x'(x) { this.wrapper.style.left = x + 'px' },
-    'live.scale'(scale) { this.img.width = this.img.height = scale * this.initialSize },
+    'state.live.translate.y'(y) { this.wrapper.style.top = y + 'px' },
+    'state.live.translate.x'(x) { this.wrapper.style.left = x + 'px' },
+    'state.live.scale'(scale) { this.img.width = this.img.height = scale * this.state.initialSize },
   },
 })
 </script>
