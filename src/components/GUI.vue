@@ -63,10 +63,10 @@ export default defineComponent({
   left: 0;
   z-index: 2000;
 
-  width: 100vw;
-  height: 100vh;
-  max-width: 100vw;
-  max-height: 100vh;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
 
   pointer-events: none;
   > * { pointer-events: auto }
