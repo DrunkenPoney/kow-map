@@ -27,6 +27,8 @@ export function ceil(value: number, b: number = 0): number {
   return Math.ceil(value * e) / e
 }
 
-export function isBetween(value: number, min: number, max: number): boolean {
-  return min < value && value < max
+export function isBetween(value: number, min: number, max: number, inclusive: boolean = false): boolean {
+  return inclusive
+    ? min <= value && value <= max
+    : min < value && value < max
 }

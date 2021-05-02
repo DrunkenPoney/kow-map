@@ -22,10 +22,10 @@
       </div>
       <table style="border-collapse: collapse">
         <tbody>
-          <tr v-for="(boost, idx) in city.boosts" :key="idx">
-            <td style="padding-left: .5em; padding-right: .25em">&bull; {{boost.name}}:</td>
-            <td v-text="fmtBoost(boost)"/>
-          </tr>
+        <tr v-for="(boost, idx) in city.boosts" :key="idx">
+          <td style="padding-left: .5em; padding-right: .25em">&bull; {{ boost.name }}:</td>
+          <td v-text="fmtBoost(boost)" />
+        </tr>
         </tbody>
       </table>
     </div>
@@ -104,6 +104,7 @@ export default defineComponent({
 <style lang="scss" scoped>
 @use "sass:list";
 @use "sass:math";
+@import "src/assets/scss/modes";
 
 .city-tooltip {
   * {
@@ -121,7 +122,7 @@ button {
   position: absolute;
   display: block;
   overflow: visible;
-  z-index: 1000;
+  z-index: 2000;
   font-size: smaller;
   font-weight: bold;
   font-stretch: ultra-condensed;
@@ -174,7 +175,7 @@ button {
     line-height: 0;
     white-space: nowrap;
     font-weight: normal;
-    color:  black;
+    color: black;
     pointer-events: none;
   }
 

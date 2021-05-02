@@ -3,6 +3,8 @@ import { DeepReadonly } from '@/modules/utils/types'
 import { MAX_SCALE } from '@/modules/utils/constants'
 import { constrain } from '@/modules/utils/math'
 
+type Awaitable<T> = Promise<T> | ( () => Promise<T> )
+
 export interface IState {
   readonly translate: {
     x: number
@@ -14,14 +16,20 @@ export interface IState {
 function newState(): IState {
   return reactive({
     translate: { x: 0, y: 0 },
-    scale: 1
+    scale: 1,
   })
 }
+
+type InitCallback<T extends IStateManager> = (sm: T) => any
 
 export interface IStateManager {
   readonly persisted: DeepReadonly<IState>
   readonly live: DeepReadonly<IState>
   readonly initialSize: number
+  readonly initialized: boolean
+  
+  onInit(callback: InitCallback<this>): void
+  init(container: HTMLElement, img: HTMLImageElement): Promise<void>
   
   zoom(scale: number, persist?: boolean): number
   zoomAt(scale: number, zoomX: number, zoomY: number, persist?: boolean): void
@@ -30,25 +38,49 @@ export interface IStateManager {
 }
 
 export class StateManager implements IStateManager {
-  private readonly container: HTMLElement
-  private img!: HTMLImageElement
+  private readonly _initCallbacks: Array<InitCallback<this>>
   private _initialSize: number
+  private _initialized: boolean
+  private container!: HTMLElement
+  private img!: HTMLImageElement
   readonly persisted: IState
   readonly live: IState
   
-  constructor(container: HTMLElement, img: HTMLImageElement) {
-    this.container = container
-    this.img = img
-    this.persisted = newState()
-    this.live = newState()
-    this._initialSize = 0
+  constructor() {
+    this._initCallbacks = []
+    this._initialSize   = 0
+    this._initialized = false
     
-    container.addEventListener('resize', this.refresh)
-    if (img.complete) this.init()
-    else img.addEventListener('load', this.init,  { once: true })
+    this.persisted = newState()
+    this.live      = newState()
   }
   
-  private init(): void { this._initialSize = this.img.width }
+  onInit(callback: InitCallback<this>): void {
+    this._initCallbacks.push(callback)
+    if (this.initialized) callback(this)
+  }
+  
+  async init(container: HTMLElement, img: HTMLImageElement): Promise<void> {
+    if (this.initialized) return
+    if (img.complete) {
+      await this._init(container, img)
+    } else {
+      await new Promise((resolve, reject) => {
+        img.addEventListener('load',
+          () => this._init(container, img).then(resolve).catch(reject),
+          { once: true })
+      })
+    }
+  }
+  
+  private async _init(container: HTMLElement, img: HTMLImageElement): Promise<void> {
+    this._initialSize = img.width
+    this.container    = container
+    this.img          = img
+    this._initialized = true
+    container.addEventListener('resize', this.refresh)
+    await Promise.all(this._initCallbacks.map((cb) => cb(this)))
+  }
   
   private refresh(): void {
     this.translateX(this.persisted.translate.x, true)
@@ -57,6 +89,7 @@ export class StateManager implements IStateManager {
   }
   
   get initialSize(): number { return this._initialSize }
+  get initialized(): boolean { return this._initialized }
   
   zoom(scale: number, persist: boolean = false): number {
     scale = this.initialSize * Math.min(scale, MAX_SCALE)
@@ -69,9 +102,9 @@ export class StateManager implements IStateManager {
   
   zoomAt(scale: number, zoomX: number, zoomY: number, persist: boolean = false): void {
     const prevScale = this.persisted.scale
-    scale = this.zoom(scale * this.persisted.scale, persist) / prevScale
-    this.translateX(zoomX * (1 - scale) + this.persisted.translate.x * scale, persist)
-    this.translateY(zoomY * (1 - scale) + this.persisted.translate.y * scale, persist)
+    scale           = this.zoom(scale * this.persisted.scale, persist) / prevScale
+    this.translateX(zoomX * ( 1 - scale ) + this.persisted.translate.x * scale, persist)
+    this.translateY(zoomY * ( 1 - scale ) + this.persisted.translate.y * scale, persist)
   }
   
   translateX(x: number, persist: boolean = false): void {

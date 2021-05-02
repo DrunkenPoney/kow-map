@@ -38,11 +38,9 @@ export default defineComponent({
 
 <style lang="scss" scoped>
 .legend-wrapper {
-  position: fixed;
+  position: absolute;
   top: 1em;
   right: 1em;
-  z-index: 9999;
-  font-size: 10px;
 
   border: 2px solid var(--surface-d);
   border-radius: 5px;

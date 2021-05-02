@@ -1,4 +1,5 @@
-import { createApp } from 'vue'
+import { createApp, reactive } from 'vue'
+import { History, IHistory } from '@/modules/history/History'
 import App from './App.vue'
 
 import PrimeVue from 'primevue/config'
@@ -9,6 +10,13 @@ import 'primeflex/primeflex.scss'
 
 import 'tippy.js/dist/tippy.css'
 
-createApp(App)
-  .use(PrimeVue, { ripple: true })
-  .mount('#app')
+declare module '@vue/runtime-core' {
+  interface ComponentCustomProperties {
+    $hist: IHistory;
+  }
+}
+
+const app = createApp(App)
+app.use(PrimeVue, { ripple: true })
+app.config.globalProperties.$hist = History.instance()
+app.mount('#app')

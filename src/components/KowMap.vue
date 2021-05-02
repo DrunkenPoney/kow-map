@@ -1,18 +1,20 @@
 <template>
-  <div ref="container"
-       class="map-container"
+  <div class="map-container"
+       :data-mode="mode"
        :style="`cursor: ${grabbing ? 'grabbing' : 'grab'}`"
+       tabindex="0"
+       @keydown.ctrl="onKeyDown"
        @wheel.passive="onWheel">
     <div ref="wrapper"
          class="map-wrapper">
       <div class="map-content">
-        <img ref="img" @load="onLoad"
-             alt="KoW Map" src="@/assets/images/kow-map-no-city.png" />
+        <MapImage @load="onLoad" />
         <div :style="marginStyle">
           <KowCity v-for="(city, idx) in cities" :key="idx"
                    :city="city" :state="state.live" />
         </div>
-        <Legend />
+        <Drawings :mode="mode" :state="state" />
+        <GUI v-model:mode="mode" />
       </div>
     </div>
   </div>
@@ -28,16 +30,18 @@ import Hammer from 'hammerjs'
 import { WHEEL_ZOOM_SENSITIVITY } from '@/modules/utils/constants'
 import { IStateManager, StateManager } from '@/modules/state'
 import Legend from '@/components/Legend.vue'
+import Drawings from '@/components/Drawings.vue'
+import GUI from '@/components/GUI.vue'
+import { Mode } from '@/modules/mode'
+import MapImage from '@/components/MapImage.vue'
 
 const refs = {
-  img: ref<HTMLImageElement>() as Ref<HTMLImageElement>,
   wrapper: ref<HTMLDivElement>() as Ref<HTMLDivElement>,
-  container: ref<HTMLDivElement>() as Ref<HTMLDivElement>,
 }
 
 export default defineComponent({
   name: 'KowMap',
-  components: { Legend, KowCity },
+  components: { MapImage, GUI, Drawings, Legend, KowCity },
   setup: () => refs,
 
   data() {
@@ -45,17 +49,18 @@ export default defineComponent({
       cities: [] as Array<ICity>,
       hammer: {} as HammerManager,
       grabbing: false,
-      state: null as unknown as IStateManager,
+      state: new StateManager() as IStateManager,
+      mode: Mode.VIEW,
+      img: null as unknown as HTMLImageElement
     }
   },
 
   mounted(): void {
+    this.$el.focus()
   },
 
   computed: {
-    img(): HTMLImageElement { return this.$refs.img as HTMLImageElement },
     wrapper() { return refs.wrapper.value as HTMLDivElement },
-    container() { return refs.container.value as HTMLDivElement },
     marginStyle() {
       let pad = 1 / 18 * 100
       return {
@@ -70,14 +75,15 @@ export default defineComponent({
   },
 
   methods: {
-    onLoad(): void {
-      if (isMobile()) this.img.width = Math.max(screen.width, screen.height)
-      this.state = new StateManager(this.$el, this.img)
+    async onLoad(img: HTMLImageElement): Promise<void> {
+      if (isMobile()) img.width = Math.max(screen.width, screen.height)
+      await this.state.init(this.$el, this.img = img)
 
-      this.hammer = new Hammer.Manager(this.container)
+      this.hammer = new Hammer.Manager(this.$el)
       this.hammer.add(new Hammer.Pan())
       this.hammer.add(new Hammer.Pinch())
       this.hammer.add(new Hammer.Tap())
+
       this.hammer.on('panend', this.onPan)
       this.hammer.on('panmove', this.onPan)
       this.hammer.on('pinchmove', this.onPinch)
@@ -87,7 +93,18 @@ export default defineComponent({
       this.cities = cities
     },
 
+    onKeyDown(ev: KeyboardEvent) {
+      if (ev.ctrlKey && !ev.altKey && !ev.metaKey) {
+        if (ev.key === 'z') {
+          this.$hist.undo()
+        } else if (ev.key === 'y') {
+          this.$hist.redo()
+        }
+      }
+    },
+
     onTap(ev: HammerInput) {
+      if (this.mode !== Mode.VIEW) return;
       if (!ev.target.classList.contains('city')) {
         console.debug('tap', ev)
       }
@@ -105,6 +122,7 @@ export default defineComponent({
     },
 
     onPan(ev: HammerInput): void {
+      if (this.mode !== Mode.VIEW) return;
       this.grabbing = ev.type !== 'panend'
       this.state.translateX(this.state.persisted.translate.x + ev.deltaX, !this.grabbing)
       this.state.translateY(this.state.persisted.translate.y + ev.deltaY, !this.grabbing)
@@ -120,7 +138,9 @@ export default defineComponent({
 })
 </script>
 
-<style lang="scss" scoped>
+<style lang="scss">
+@import 'src/assets/scss/modes';
+
 .map-container {
   position: relative;
   touch-action: none;
@@ -144,6 +164,23 @@ export default defineComponent({
         will-change: width, height;
         vertical-align: middle;
       }
+    }
+  }
+
+
+
+  &[data-mode="#{$mode-view}"] {
+    .drawing-root {
+      pointer-events: none;
+    }
+  }
+  &:not([data-mode="#{$mode-view}"]) {
+    .drawing-root {
+      pointer-events: all;
+    }
+    .city {
+      pointer-events: none;
+      touch-action: none;
     }
   }
 }
